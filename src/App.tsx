@@ -14,7 +14,9 @@ import {
   Phone,
   RefreshCw,
   TrendingUp,
-  Download
+  Download,
+  Edit2,
+  XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -33,7 +35,7 @@ interface Measurement {
 
 export default function App() {
   // Global Settings
-  const [globalPrice, setGlobalPrice] = useState<string>('');
+  const [globalPrice, setGlobalPrice] = useState<string>(() => localStorage.getItem('m2_premium_global_price') || '');
   
   // Current Input State
   const [name, setName] = useState<string>('');
@@ -51,6 +53,9 @@ export default function App() {
     }
   });
 
+  const [projectName, setProjectName] = useState(() => localStorage.getItem('m2_premium_project_name') || 'Mi Proyecto');
+  const [isEditingProjectName, setIsEditingProjectName] = useState(false);
+
   const [copied, setCopied] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState(() => localStorage.getItem('m2_premium_whatsapp') || '');
@@ -64,6 +69,7 @@ export default function App() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -179,7 +185,9 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('m2_premium_items', JSON.stringify(items));
     localStorage.setItem('m2_premium_whatsapp', whatsappNumber);
-  }, [items, whatsappNumber]);
+    localStorage.setItem('m2_premium_project_name', projectName);
+    localStorage.setItem('m2_premium_global_price', globalPrice);
+  }, [items, whatsappNumber, projectName, globalPrice]);
 
   // Derived Calculations for Current Input
   const currentLength = parseFloat(length) || 0;
@@ -197,19 +205,37 @@ export default function App() {
   const handleAddItem = () => {
     if (!validate()) return;
 
-    const newItem: Measurement = {
-      id: crypto.randomUUID(),
-      name: name.trim() || `Área ${items.length + 1}`,
-      length: currentLength,
-      width: currentWidth,
-      quantity: currentQuantity,
-      pricePerM2: currentPrice,
-      area: currentArea,
-      cost: currentCost,
-      timestamp: Date.now(),
-    };
+    if (editingId) {
+      setItems(items.map(item => 
+        item.id === editingId 
+          ? {
+              ...item,
+              name: name.trim() || `Área ${items.length}`,
+              length: currentLength,
+              width: currentWidth,
+              quantity: currentQuantity,
+              pricePerM2: currentPrice,
+              area: currentArea,
+              cost: currentCost,
+            }
+          : item
+      ));
+      setEditingId(null);
+    } else {
+      const newItem: Measurement = {
+        id: crypto.randomUUID(),
+        name: name.trim() || `Área ${items.length + 1}`,
+        length: currentLength,
+        width: currentWidth,
+        quantity: currentQuantity,
+        pricePerM2: currentPrice,
+        area: currentArea,
+        cost: currentCost,
+        timestamp: Date.now(),
+      };
 
-    setItems([newItem, ...items]);
+      setItems([newItem, ...items]);
+    }
     
     // Reset inputs but keep price
     setName('');
@@ -219,7 +245,31 @@ export default function App() {
     setErrors({});
   };
 
+  const handleEditItem = (item: Measurement) => {
+    setEditingId(item.id);
+    setName(item.name);
+    setLength(item.length.toString());
+    setWidth(item.width.toString());
+    setQuantity(item.quantity.toString());
+    setGlobalPrice(item.pricePerM2.toString());
+    
+    // Scroll to top to see the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setName('');
+    setLength('');
+    setWidth('');
+    setQuantity('1');
+    setErrors({});
+  };
+
   const handleRemoveItem = (id: string) => {
+    if (editingId === id) {
+      handleCancelEdit();
+    }
     setItems(items.filter(item => item.id !== id));
   };
 
@@ -303,9 +353,31 @@ export default function App() {
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm overflow-hidden border border-indigo-500">
               <img src="/logo.svg" alt="Logo" className="w-full h-full object-cover" />
             </div>
-            <h1 className="font-bold text-lg tracking-tight text-neutral-900">
-              Calculadora m² <span className="text-indigo-600">Premium</span>
-            </h1>
+            <div className="flex flex-col">
+              <h1 className="font-bold text-lg tracking-tight text-neutral-900 leading-none">
+                Calculadora m² <span className="text-indigo-600">Premium</span>
+              </h1>
+              <div className="flex items-center gap-1 mt-1 group cursor-pointer" onClick={() => setIsEditingProjectName(true)}>
+                {isEditingProjectName ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    onBlur={() => setIsEditingProjectName(false)}
+                    onKeyDown={(e) => e.key === 'Enter' && setIsEditingProjectName(false)}
+                    className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 border-none outline-none rounded px-1 py-0.5 w-32"
+                  />
+                ) : (
+                  <>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                      {projectName}
+                    </span>
+                    <Edit2 className="w-2.5 h-2.5 text-gray-300 group-hover:text-indigo-400 transition-colors" />
+                  </>
+                )}
+              </div>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {bcvRate > 0 && (
@@ -350,7 +422,10 @@ export default function App() {
               {/* Global Price */}
               <div className="space-y-1.5 sm:col-span-2">
                 <div className="flex justify-between items-center">
-                  <label className="text-sm font-medium text-neutral-700">Precio por m² ($) <span className="text-neutral-400 font-normal">(Opcional)</span></label>
+                  <label className="text-sm font-medium text-neutral-700 flex items-center justify-between w-full">
+                    <span>Precio por m² ($)</span>
+                    <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest bg-indigo-50 px-1.5 py-0.5 rounded">Persistente</span>
+                  </label>
                   {errors.globalPrice && <span className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{errors.globalPrice}</span>}
                 </div>
                 <div className="relative">
@@ -455,14 +530,25 @@ export default function App() {
               )}
             </div>
             
-            <button
-              onClick={handleAddItem}
-              disabled={currentArea <= 0}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-neutral-200 disabled:text-neutral-400 text-white px-6 py-3 rounded-xl font-medium transition-all active:scale-[0.98]"
-            >
-              <Plus className="w-5 h-5" />
-              Añadir al Proyecto
-            </button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              {editingId && (
+                <button
+                  onClick={handleCancelEdit}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 px-6 py-3 rounded-xl font-medium transition-all active:scale-[0.98]"
+                >
+                  <XCircle className="w-5 h-5" />
+                  Cancelar
+                </button>
+              )}
+              <button
+                onClick={handleAddItem}
+                disabled={currentArea <= 0}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-neutral-200 disabled:text-neutral-400 text-white px-6 py-3 rounded-xl font-medium transition-all active:scale-[0.98]"
+              >
+                {editingId ? <RefreshCw className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                {editingId ? 'Actualizar Área' : 'Añadir al Proyecto'}
+              </button>
+            </div>
           </div>
         </section>
 
@@ -531,13 +617,22 @@ export default function App() {
                             </div>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleRemoveItem(item.id)}
-                          className="shrink-0 p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                          aria-label="Eliminar item"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleEditItem(item)}
+                            className="p-2 text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            aria-label="Editar item"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleRemoveItem(item.id)}
+                            className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            aria-label="Eliminar item"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </motion.li>
                   ))}
