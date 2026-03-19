@@ -66,43 +66,23 @@ export default function App() {
     setIsFetchingBcv(true);
     setFetchError(false);
     try {
-      // Intento 1: DolarApi.com
-      const response = await fetch('https://ve.dolarapi.com/v1/dolares/bcv');
-      if (!response.ok) throw new Error('DolarApi failed');
+      // Usar nuestro proxy local para evitar problemas de CORS
+      const response = await fetch('/api/bcv');
+      if (!response.ok) throw new Error('Proxy failed');
       const data = await response.json();
       
-      if (data && data.promedio) {
-        setBcvRate(data.promedio);
+      if (data && data.rate) {
+        setBcvRate(data.rate);
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setLastBcvUpdate(time);
-        localStorage.setItem('m2_premium_bcv', data.promedio.toString());
+        localStorage.setItem('m2_premium_bcv', data.rate.toString());
         localStorage.setItem('m2_premium_bcv_time', time);
         return;
       }
-      throw new Error('Invalid data from DolarApi');
+      throw new Error('Invalid data from proxy');
     } catch (error) {
-      console.error('Error fetching from DolarApi, trying fallback...', error);
-      
-      try {
-        // Intento 2: Fallback API (pydolarve)
-        const response = await fetch('https://pydolarve.org/api/v1/dollar?type=bcv');
-        if (!response.ok) throw new Error('Fallback failed');
-        const data = await response.json();
-        
-        // Estructura pydolarve: { monitors: { bcv: { price: ... } } }
-        const rate = data?.monitors?.bcv?.price;
-        if (rate) {
-          setBcvRate(rate);
-          const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          setLastBcvUpdate(time);
-          localStorage.setItem('m2_premium_bcv', rate.toString());
-          localStorage.setItem('m2_premium_bcv_time', time);
-          return;
-        }
-      } catch (fallbackError) {
-        console.error('All BCV APIs failed:', fallbackError);
-        setFetchError(true);
-      }
+      console.error('Error fetching BCV rate via proxy:', error);
+      setFetchError(true);
     } finally {
       setIsFetchingBcv(false);
     }
