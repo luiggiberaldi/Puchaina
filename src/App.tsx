@@ -18,7 +18,7 @@ import {
   Edit2,
   XCircle
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Types
 interface Measurement {
@@ -35,7 +35,13 @@ interface Measurement {
 
 export default function App() {
   // Global Settings
-  const [globalPrice, setGlobalPrice] = useState<string>(() => localStorage.getItem('m2_premium_global_price') || '');
+  const [globalPrice, setGlobalPrice] = useState<string>(() => {
+    try {
+      return localStorage.getItem('m2_premium_global_price') || '';
+    } catch {
+      return '';
+    }
+  });
   
   // Current Input State
   const [name, setName] = useState<string>('');
@@ -47,25 +53,58 @@ export default function App() {
   const [items, setItems] = useState<Measurement[]>(() => {
     try {
       const saved = localStorage.getItem('m2_premium_items');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('Error loading items from localStorage:', e);
       return [];
     }
   });
 
-  const [projectName, setProjectName] = useState(() => localStorage.getItem('m2_premium_project_name') || 'Mi Proyecto');
+  const [projectName, setProjectName] = useState(() => {
+    try {
+      return localStorage.getItem('m2_premium_project_name') || 'Mi Proyecto';
+    } catch {
+      return 'Mi Proyecto';
+    }
+  });
   const [isEditingProjectName, setIsEditingProjectName] = useState(false);
 
   const [copied, setCopied] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [whatsappNumber, setWhatsappNumber] = useState(() => localStorage.getItem('m2_premium_whatsapp') || '');
-  const [bcvRate, setBcvRate] = useState<number>(() => {
-    const saved = localStorage.getItem('m2_premium_bcv');
-    return saved ? Math.ceil(parseFloat(saved)) : 0;
+  const [whatsappNumber, setWhatsappNumber] = useState(() => {
+    try {
+      return localStorage.getItem('m2_premium_whatsapp') || '';
+    } catch {
+      return '';
+    }
   });
-  const [bcvSource, setBcvSource] = useState<string>(() => localStorage.getItem('m2_premium_bcv_source') || '');
+  const [bcvRate, setBcvRate] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('m2_premium_bcv');
+      if (!saved) return 0;
+      const rate = parseFloat(saved);
+      return isNaN(rate) ? 0 : Math.ceil(rate);
+    } catch {
+      return 0;
+    }
+  });
+  const [bcvSource, setBcvSource] = useState<string>(() => {
+    try {
+      return localStorage.getItem('m2_premium_bcv_source') || '';
+    } catch {
+      return '';
+    }
+  });
   const [isFetchingBcv, setIsFetchingBcv] = useState(false);
-  const [lastBcvUpdate, setLastBcvUpdate] = useState<string>(() => localStorage.getItem('m2_premium_bcv_time') || '');
+  const [lastBcvUpdate, setLastBcvUpdate] = useState<string>(() => {
+    try {
+      return localStorage.getItem('m2_premium_bcv_time') || '';
+    } catch {
+      return '';
+    }
+  });
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -183,10 +222,14 @@ export default function App() {
 
   // Save to localStorage whenever items change
   useEffect(() => {
-    localStorage.setItem('m2_premium_items', JSON.stringify(items));
-    localStorage.setItem('m2_premium_whatsapp', whatsappNumber);
-    localStorage.setItem('m2_premium_project_name', projectName);
-    localStorage.setItem('m2_premium_global_price', globalPrice);
+    try {
+      localStorage.setItem('m2_premium_items', JSON.stringify(items));
+      localStorage.setItem('m2_premium_whatsapp', whatsappNumber);
+      localStorage.setItem('m2_premium_project_name', projectName);
+      localStorage.setItem('m2_premium_global_price', globalPrice);
+    } catch (e) {
+      console.error('Error saving to localStorage:', e);
+    }
   }, [items, whatsappNumber, projectName, globalPrice]);
 
   // Derived Calculations for Current Input
