@@ -1,20 +1,27 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Calculadora Premium m²
 
-# Run and deploy your AI Studio app
+Este proyecto es una calculadora de metros cuadrados con integración de tasa BCV y exportación a WhatsApp.
 
-This contains everything you need to run your app locally.
+## Despliegue en Vercel
 
-View your app in AI Studio: https://ai.studio/apps/9b166acc-6b01-456b-aa02-feb7cbe0de71
+1. **Sube el código a GitHub**: Crea un repositorio en GitHub y sube todos los archivos de este proyecto.
+2. **Conecta con Vercel**:
+   - Ve a [vercel.com](https://vercel.com).
+   - Haz clic en "Add New" -> "Project".
+   - Importa tu repositorio de GitHub.
+3. **Configuración del Proyecto**:
+   - **Framework Preset**: Vite (Vercel lo detectará automáticamente).
+   - **Build Command**: `npm run build`.
+   - **Output Directory**: `dist`.
+4. **Variables de Entorno**:
+   - Si utilizas funciones de IA, asegúrate de añadir la variable `GEMINI_API_KEY` en la sección "Environment Variables" de Vercel.
+5. **¡Listo!**: Haz clic en "Deploy".
 
-## Run Locally
+## Características
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- Cálculo de área y costo por m².
+- **Tasa BCV Robusta**: Actualización automática con sistema de respaldo (DolarApi + pydolarve) para mayor confiabilidad.
+- **Persistencia Local**: Guarda tus mediciones, la última tasa BCV y tu número de WhatsApp automáticamente.
+- **Exportación a WhatsApp**: Genera presupuestos detallados con un solo clic.
+- **Diseño Moderno**: Interfaz limpia con animaciones suaves y modo proyecto.
+- **Historial de Mediciones**: Gestiona múltiples ítems en un solo presupuesto.

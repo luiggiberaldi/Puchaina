@@ -52,32 +52,68 @@ export default function App() {
 
   const [copied, setCopied] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [whatsappNumber, setWhatsappNumber] = useState('');
-  const [bcvRate, setBcvRate] = useState<number>(0);
+  const [whatsappNumber, setWhatsappNumber] = useState(() => localStorage.getItem('m2_premium_whatsapp') || '');
+  const [bcvRate, setBcvRate] = useState<number>(() => {
+    const saved = localStorage.getItem('m2_premium_bcv');
+    return saved ? parseFloat(saved) : 0;
+  });
   const [isFetchingBcv, setIsFetchingBcv] = useState(false);
-  const [lastBcvUpdate, setLastBcvUpdate] = useState<string>('');
+  const [lastBcvUpdate, setLastBcvUpdate] = useState<string>(() => localStorage.getItem('m2_premium_bcv_time') || '');
+  const [fetchError, setFetchError] = useState(false);
 
   // Fetch BCV Rate
   const fetchBcvRate = async () => {
     setIsFetchingBcv(true);
+    setFetchError(false);
     try {
-      // Usando DolarApi.com (API pública y gratuita para tasas de Venezuela)
+      // Intento 1: DolarApi.com
       const response = await fetch('https://ve.dolarapi.com/v1/dolares/bcv');
+      if (!response.ok) throw new Error('DolarApi failed');
       const data = await response.json();
+      
       if (data && data.promedio) {
         setBcvRate(data.promedio);
-        setLastBcvUpdate(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastBcvUpdate(time);
+        localStorage.setItem('m2_premium_bcv', data.promedio.toString());
+        localStorage.setItem('m2_premium_bcv_time', time);
+        return;
       }
+      throw new Error('Invalid data from DolarApi');
     } catch (error) {
-      console.error('Error fetching BCV rate:', error);
+      console.error('Error fetching from DolarApi, trying fallback...', error);
+      
+      try {
+        // Intento 2: Fallback API (pydolarve)
+        const response = await fetch('https://pydolarve.org/api/v1/dollar?type=bcv');
+        if (!response.ok) throw new Error('Fallback failed');
+        const data = await response.json();
+        
+        // Estructura pydolarve: { monitors: { bcv: { price: ... } } }
+        const rate = data?.monitors?.bcv?.price;
+        if (rate) {
+          setBcvRate(rate);
+          const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setLastBcvUpdate(time);
+          localStorage.setItem('m2_premium_bcv', rate.toString());
+          localStorage.setItem('m2_premium_bcv_time', time);
+          return;
+        }
+      } catch (fallbackError) {
+        console.error('All BCV APIs failed:', fallbackError);
+        setFetchError(true);
+      }
     } finally {
       setIsFetchingBcv(false);
     }
   };
 
   useEffect(() => {
-    fetchBcvRate();
-    // Auto-actualizar cada 30 minutos
+    // Solo actualizar si no tenemos una tasa reciente o si es 0
+    if (bcvRate === 0) {
+      fetchBcvRate();
+    }
+    
     const interval = setInterval(fetchBcvRate, 30 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -85,7 +121,8 @@ export default function App() {
   // Save to localStorage whenever items change
   useEffect(() => {
     localStorage.setItem('m2_premium_items', JSON.stringify(items));
-  }, [items]);
+    localStorage.setItem('m2_premium_whatsapp', whatsappNumber);
+  }, [items, whatsappNumber]);
 
   // Derived Calculations for Current Input
   const currentLength = parseFloat(length) || 0;
@@ -463,6 +500,11 @@ export default function App() {
                     {lastBcvUpdate && (
                       <span className="text-[10px] text-neutral-400 font-medium ml-6">
                         Actualizado: {lastBcvUpdate}
+                      </span>
+                    )}
+                    {fetchError && (
+                      <span className="text-[10px] text-red-500 font-medium ml-6">
+                        Error de conexión. Ingrese manual.
                       </span>
                     )}
                   </div>
