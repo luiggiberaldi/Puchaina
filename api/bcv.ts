@@ -12,11 +12,6 @@ export default async function handler(
 
   const sources = [
     {
-      name: 'DolarApi',
-      url: 'https://ve.dolarapi.com/v1/dolares/bcv',
-      parse: (data: any) => data?.promedio
-    },
-    {
       name: 'ExchangeRate-API',
       url: 'https://api.exchangerate-api.com/v4/latest/USD',
       parse: (data: any) => data?.rates?.VES
@@ -32,14 +27,20 @@ export default async function handler(
       parse: (data: any) => data?.data?.rates?.VES
     },
     {
-      name: 'CriptoDolar',
-      url: 'https://criptodolar.com/api/v1/dollar/bcv',
-      parse: (data: any) => data?.price
+      name: 'DolarApi',
+      url: 'https://ve.dolarapi.com/v1/dolares',
+      parse: (data: any) => {
+        if (Array.isArray(data)) {
+          const bcv = data.find(d => d.entidad === 'BCV' || d.key === 'bcv');
+          return bcv?.promedio || bcv?.price;
+        }
+        return data?.promedio;
+      }
     },
     {
-      name: 'PyDolarVE',
-      url: 'https://pydolarve.org/api/v1/dollar?type=bcv',
-      parse: (data: any) => data?.monitors?.bcv?.price
+      name: 'Exchangerate.host',
+      url: 'https://api.exchangerate.host/live?access_key=free&source=USD&currencies=VES',
+      parse: (data: any) => data?.quotes?.USDVES
     }
   ];
 
@@ -55,7 +56,7 @@ export default async function handler(
       if (!rate) throw new Error('Rate not found');
       const numericRate = parseFloat(rate);
       if (isNaN(numericRate) || numericRate <= 0) throw new Error('Invalid rate');
-      return { rate: numericRate, source: source.name };
+      return { rate: Math.ceil(numericRate), source: source.name };
     } catch (e) {
       clearTimeout(id);
       throw e;

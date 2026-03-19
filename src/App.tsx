@@ -13,7 +13,8 @@ import {
   MessageCircle,
   Phone,
   RefreshCw,
-  TrendingUp
+  TrendingUp,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -55,13 +56,36 @@ export default function App() {
   const [whatsappNumber, setWhatsappNumber] = useState(() => localStorage.getItem('m2_premium_whatsapp') || '');
   const [bcvRate, setBcvRate] = useState<number>(() => {
     const saved = localStorage.getItem('m2_premium_bcv');
-    return saved ? parseFloat(saved) : 0;
+    return saved ? Math.ceil(parseFloat(saved)) : 0;
   });
   const [bcvSource, setBcvSource] = useState<string>(() => localStorage.getItem('m2_premium_bcv_source') || '');
   const [isFetchingBcv, setIsFetchingBcv] = useState(false);
   const [lastBcvUpdate, setLastBcvUpdate] = useState<string>(() => localStorage.getItem('m2_premium_bcv_time') || '');
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -123,7 +147,7 @@ export default function App() {
       const data = await response.json();
       
       if (data && data.rate) {
-        setBcvRate(data.rate);
+        setBcvRate(Math.ceil(data.rate));
         setBcvSource(data.source || '');
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setLastBcvUpdate(time);
@@ -242,7 +266,6 @@ export default function App() {
     items.forEach((item, index) => {
       text += `*${index + 1}. ${item.name}*\n`;
       text += `Dimensiones: ${item.length}cm x ${item.width}cm (Cant: ${item.quantity})\n`;
-      text += `Área: ${item.area.toFixed(4)} m²\n`;
       if (item.pricePerM2 > 0) {
         text += `Costo: $${item.cost.toFixed(2)}\n`;
         if (bcvRate > 0) {
@@ -253,11 +276,11 @@ export default function App() {
     });
 
     text += `========================\n`;
-    if (totalCost > 0) {
+      if (totalCost > 0) {
       text += `*COSTO TOTAL: $${totalCost.toFixed(2)}*\n`;
       if (bcvRate > 0) {
         text += `*TOTAL BS. (BCV): ${(totalCost * bcvRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs.*\n`;
-        text += `_Tasa BCV: ${bcvRate.toFixed(2)}_\n`;
+        text += `_Tasa BCV: ${Math.ceil(bcvRate)}_\n`;
       }
       text += `\n_Nota: El diseño va incluido en el costo._\n`;
     }
@@ -276,16 +299,29 @@ export default function App() {
       {/* Header */}
       <header className="bg-white border-b border-neutral-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-indigo-600">
-            <Calculator className="w-6 h-6" />
-            <h1 className="font-semibold text-lg tracking-tight">Calculadora m² <span className="text-neutral-400 font-normal">Pro</span></h1>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm overflow-hidden border border-indigo-500">
+              <img src="/logo.svg" alt="Logo" className="w-full h-full object-cover" />
+            </div>
+            <h1 className="font-bold text-lg tracking-tight text-neutral-900">
+              Calculadora m² <span className="text-indigo-600">Premium</span>
+            </h1>
           </div>
           <div className="flex items-center gap-3">
             {bcvRate > 0 && (
               <div className="hidden sm:flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-100">
                 <TrendingUp className="w-3 h-3" />
-                BCV: {bcvRate.toFixed(2)}
+                BCV: {Math.ceil(bcvRate)}
               </div>
+            )}
+            {deferredPrompt && (
+              <button
+                onClick={handleInstallClick}
+                className="flex items-center gap-1.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-full transition-all shadow-sm"
+              >
+                <Download className="w-4 h-4" />
+                Instalar
+              </button>
             )}
             {items.length > 0 && (
               <button
@@ -558,9 +594,9 @@ export default function App() {
                     <input
                       type="number"
                       value={bcvRate || ''}
-                      onChange={(e) => setBcvRate(parseFloat(e.target.value) || 0)}
+                      onChange={(e) => setBcvRate(Math.ceil(parseFloat(e.target.value) || 0))}
                       className="w-24 text-right px-2 py-1 text-sm font-bold text-neutral-900 border-b border-neutral-200 focus:border-indigo-500 outline-none"
-                      placeholder="0.00"
+                      placeholder="0"
                     />
                     <button
                       onClick={fetchBcvRate}
