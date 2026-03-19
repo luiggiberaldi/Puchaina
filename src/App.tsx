@@ -67,14 +67,22 @@ export default function App() {
     setFetchError(false);
     try {
       // Usar nuestro proxy local para evitar problemas de CORS
-      // En Vercel, esto llamará a /api/bcv.ts
       const response = await fetch('/api/bcv');
       
+      const contentType = response.headers.get("content-type");
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Error ${response.status}`);
+        let errorMessage = `Error ${response.status}`;
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json().catch(() => ({}));
+          errorMessage = errorData.error || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Respuesta del servidor no es JSON");
+      }
+
       const data = await response.json();
       
       if (data && data.rate) {
@@ -85,7 +93,7 @@ export default function App() {
         localStorage.setItem('m2_premium_bcv_time', time);
         return;
       }
-      throw new Error('Datos inválidos');
+      throw new Error('Datos de tasa inválidos');
     } catch (error) {
       console.error('Error fetching BCV rate:', error);
       setFetchError(true);
