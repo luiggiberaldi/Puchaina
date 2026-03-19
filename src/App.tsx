@@ -67,8 +67,14 @@ export default function App() {
     setFetchError(false);
     try {
       // Usar nuestro proxy local para evitar problemas de CORS
+      // En Vercel, esto llamará a /api/bcv.ts
       const response = await fetch('/api/bcv');
-      if (!response.ok) throw new Error('Proxy failed');
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Error ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data && data.rate) {
@@ -79,9 +85,9 @@ export default function App() {
         localStorage.setItem('m2_premium_bcv_time', time);
         return;
       }
-      throw new Error('Invalid data from proxy');
+      throw new Error('Datos inválidos');
     } catch (error) {
-      console.error('Error fetching BCV rate via proxy:', error);
+      console.error('Error fetching BCV rate:', error);
       setFetchError(true);
     } finally {
       setIsFetchingBcv(false);
