@@ -57,17 +57,53 @@ export default function App() {
     const saved = localStorage.getItem('m2_premium_bcv');
     return saved ? parseFloat(saved) : 0;
   });
+  const [bcvSource, setBcvSource] = useState<string>(() => localStorage.getItem('m2_premium_bcv_source') || '');
   const [isFetchingBcv, setIsFetchingBcv] = useState(false);
   const [lastBcvUpdate, setLastBcvUpdate] = useState<string>(() => localStorage.getItem('m2_premium_bcv_time') || '');
-  const [fetchError, setFetchError] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (globalPrice && parseFloat(globalPrice) < 0) {
+      newErrors.globalPrice = 'El precio no puede ser negativo';
+    }
+    if (!length) {
+      newErrors.length = 'El largo es requerido';
+    } else if (parseFloat(length) <= 0) {
+      newErrors.length = 'Debe ser mayor a 0';
+    }
+    if (!width) {
+      newErrors.width = 'El ancho es requerido';
+    } else if (parseFloat(width) <= 0) {
+      newErrors.width = 'Debe ser mayor a 0';
+    }
+    if (!quantity) {
+      newErrors.quantity = 'Requerido';
+    } else if (parseInt(quantity) <= 0) {
+      newErrors.quantity = 'Mínimo 1';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const clearError = (field: string) => {
+    if (errors[field]) {
+      const newErrors = { ...errors };
+      delete newErrors[field];
+      setErrors(newErrors);
+    }
+  };
 
   // Fetch BCV Rate
   const fetchBcvRate = async () => {
     setIsFetchingBcv(true);
-    setFetchError(false);
+    setFetchError(null);
     try {
       // Usar nuestro proxy local para evitar problemas de CORS
-      const response = await fetch('/api/bcv');
+      // Añadimos un timestamp para evitar cache
+      const response = await fetch(`/api/bcv?t=${Date.now()}`);
       
       const contentType = response.headers.get("content-type");
       if (!response.ok) {
@@ -75,28 +111,31 @@ export default function App() {
         if (contentType && contentType.includes("application/json")) {
           const errorData = await response.json().catch(() => ({}));
           errorMessage = errorData.error || errorMessage;
+          if (errorData.details) errorMessage += `: ${errorData.details}`;
         }
         throw new Error(errorMessage);
       }
       
       if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Respuesta del servidor no es JSON");
+        throw new Error("Respuesta del servidor no es válida (no JSON)");
       }
 
       const data = await response.json();
       
       if (data && data.rate) {
         setBcvRate(data.rate);
+        setBcvSource(data.source || '');
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setLastBcvUpdate(time);
         localStorage.setItem('m2_premium_bcv', data.rate.toString());
+        localStorage.setItem('m2_premium_bcv_source', data.source || '');
         localStorage.setItem('m2_premium_bcv_time', time);
         return;
       }
-      throw new Error('Datos de tasa inválidos');
+      throw new Error('Tasa no encontrada en la respuesta');
     } catch (error) {
       console.error('Error fetching BCV rate:', error);
-      setFetchError(true);
+      setFetchError(error instanceof Error ? error.message : 'Error de conexión');
     } finally {
       setIsFetchingBcv(false);
     }
@@ -132,7 +171,7 @@ export default function App() {
   const totalCost = items.reduce((sum, item) => sum + item.cost, 0);
 
   const handleAddItem = () => {
-    if (currentArea <= 0) return;
+    if (!validate()) return;
 
     const newItem: Measurement = {
       id: crypto.randomUUID(),
@@ -153,6 +192,7 @@ export default function App() {
     setLength('');
     setWidth('');
     setQuantity('1');
+    setErrors({});
   };
 
   const handleRemoveItem = (id: string) => {
@@ -273,18 +313,21 @@ export default function App() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Global Price */}
               <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-sm font-medium text-neutral-700">Precio por m² ($) <span className="text-neutral-400 font-normal">(Opcional)</span></label>
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium text-neutral-700">Precio por m² ($) <span className="text-neutral-400 font-normal">(Opcional)</span></label>
+                  {errors.globalPrice && <span className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{errors.globalPrice}</span>}
+                </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <DollarSign className="h-4 w-4 text-neutral-400" />
+                    <DollarSign className={`h-4 w-4 ${errors.globalPrice ? 'text-red-400' : 'text-neutral-400'}`} />
                   </div>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={globalPrice}
-                    onChange={(e) => setGlobalPrice(e.target.value)}
-                    className="block w-full pl-9 pr-3 py-2.5 bg-white border border-neutral-300 rounded-xl text-neutral-900 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all sm:text-sm"
+                    onChange={(e) => { setGlobalPrice(e.target.value); clearError('globalPrice'); }}
+                    className={`block w-full pl-9 pr-3 py-2.5 bg-white border ${errors.globalPrice ? 'border-red-300 ring-2 ring-red-500/10' : 'border-neutral-300'} rounded-xl text-neutral-900 focus:ring-2 ${errors.globalPrice ? 'focus:ring-red-500/20 focus:border-red-500' : 'focus:ring-indigo-600/20 focus:border-indigo-600'} transition-all sm:text-sm`}
                     placeholder="Ej: 1500"
                   />
                 </div>
@@ -309,41 +352,50 @@ export default function App() {
 
               {/* Dimensions */}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-neutral-700">Largo (cm)</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium text-neutral-700">Largo (cm)</label>
+                  {errors.length && <span className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{errors.length}</span>}
+                </div>
                 <input
                   type="number"
                   min="0"
                   value={length}
-                  onChange={(e) => setLength(e.target.value)}
-                  className="block w-full px-3 py-2.5 bg-white border border-neutral-300 rounded-xl text-neutral-900 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all sm:text-sm"
+                  onChange={(e) => { setLength(e.target.value); clearError('length'); }}
+                  className={`block w-full px-3 py-2.5 bg-white border ${errors.length ? 'border-red-300 ring-2 ring-red-500/10' : 'border-neutral-300'} rounded-xl text-neutral-900 focus:ring-2 ${errors.length ? 'focus:ring-red-500/20 focus:border-red-500' : 'focus:ring-indigo-600/20 focus:border-indigo-600'} transition-all sm:text-sm`}
                   placeholder="Ej: 120"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-neutral-700">Ancho (cm)</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium text-neutral-700">Ancho (cm)</label>
+                  {errors.width && <span className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{errors.width}</span>}
+                </div>
                 <input
                   type="number"
                   min="0"
                   value={width}
-                  onChange={(e) => setWidth(e.target.value)}
-                  className="block w-full px-3 py-2.5 bg-white border border-neutral-300 rounded-xl text-neutral-900 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all sm:text-sm"
+                  onChange={(e) => { setWidth(e.target.value); clearError('width'); }}
+                  className={`block w-full px-3 py-2.5 bg-white border ${errors.width ? 'border-red-300 ring-2 ring-red-500/10' : 'border-neutral-300'} rounded-xl text-neutral-900 focus:ring-2 ${errors.width ? 'focus:ring-red-500/20 focus:border-red-500' : 'focus:ring-indigo-600/20 focus:border-indigo-600'} transition-all sm:text-sm`}
                   placeholder="Ej: 60"
                 />
               </div>
               
               {/* Quantity */}
               <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-sm font-medium text-neutral-700">Cantidad</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium text-neutral-700">Cantidad</label>
+                  {errors.quantity && <span className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{errors.quantity}</span>}
+                </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Layers className="h-4 w-4 text-neutral-400" />
+                    <Layers className={`h-4 w-4 ${errors.quantity ? 'text-red-400' : 'text-neutral-400'}`} />
                   </div>
                   <input
                     type="number"
                     min="1"
                     value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    className="block w-full pl-9 pr-3 py-2.5 bg-white border border-neutral-300 rounded-xl text-neutral-900 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all sm:text-sm"
+                    onChange={(e) => { setQuantity(e.target.value); clearError('quantity'); }}
+                    className={`block w-full pl-9 pr-3 py-2.5 bg-white border ${errors.quantity ? 'border-red-300 ring-2 ring-red-500/10' : 'border-neutral-300'} rounded-xl text-neutral-900 focus:ring-2 ${errors.quantity ? 'focus:ring-red-500/20 focus:border-red-500' : 'focus:ring-indigo-600/20 focus:border-indigo-600'} transition-all sm:text-sm`}
                     placeholder="1"
                   />
                 </div>
@@ -493,12 +545,12 @@ export default function App() {
                     </div>
                     {lastBcvUpdate && (
                       <span className="text-[10px] text-neutral-400 font-medium ml-6">
-                        Actualizado: {lastBcvUpdate}
+                        Actualizado: {lastBcvUpdate} {bcvSource && `(${bcvSource})`}
                       </span>
                     )}
                     {fetchError && (
-                      <span className="text-[10px] text-red-500 font-medium ml-6">
-                        Error de conexión. Ingrese manual.
+                      <span className="text-[10px] text-red-500 font-medium ml-6 max-w-[150px] leading-tight">
+                        {fetchError}. Ingrese manual.
                       </span>
                     )}
                   </div>
