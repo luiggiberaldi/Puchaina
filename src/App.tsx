@@ -16,7 +16,9 @@ import {
   TrendingUp,
   Download,
   Pencil,
-  CircleX
+  CircleX,
+  List,
+  FileText
 } from 'lucide-react';
 
 // Types
@@ -108,6 +110,16 @@ export default function App() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [bulkText, setBulkText] = useState('');
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
+
+  const generateId = () => {
+    try {
+      return crypto.randomUUID();
+    } catch {
+      return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+    }
+  };
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -264,14 +276,6 @@ export default function App() {
       ));
       setEditingId(null);
     } else {
-      const generateId = () => {
-        try {
-          return crypto.randomUUID();
-        } catch {
-          return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-        }
-      };
-
       const newItem: Measurement = {
         id: generateId(),
         name: name.trim() || `Área ${items.length + 1}`,
@@ -326,6 +330,64 @@ export default function App() {
   const handleClearAll = () => {
     setItems([]);
     setShowClearConfirm(false);
+  };
+
+  const handleBulkAdd = () => {
+    if (!bulkText.trim()) return;
+    
+    const lines = bulkText.split('\n');
+    const newItems: Measurement[] = [];
+    const defaultPrice = parseFloat(globalPrice) || 0;
+    
+    lines.forEach((line) => {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) return;
+      
+      let l = 0, w = 0, q = 1, n = '', p = defaultPrice;
+      
+      if (trimmedLine.includes(',')) {
+        const parts = trimmedLine.split(',').map(part => part.trim());
+        if (parts.length >= 3) {
+          n = parts[0];
+          l = parseFloat(parts[1]);
+          w = parseFloat(parts[2]);
+          if (parts.length >= 4) q = parseInt(parts[3]) || 1;
+          if (parts.length >= 5) p = parseFloat(parts[4]) || defaultPrice;
+        }
+      } else {
+        const parts = trimmedLine.split(/[x* ]+/).map(part => part.trim()).filter(part => part);
+        if (parts.length >= 2) {
+          l = parseFloat(parts[0]);
+          w = parseFloat(parts[1]);
+          if (parts.length >= 3) q = parseInt(parts[2]) || 1;
+          if (parts.length >= 4) p = parseFloat(parts[3]) || defaultPrice;
+          n = `Área ${items.length + newItems.length + 1}`;
+        }
+      }
+      
+      if (l > 0 && w > 0) {
+        const area = (l * w * q) / 10000;
+        const cost = area * p;
+        
+        newItems.push({
+          id: generateId(),
+          name: n || `Área ${items.length + newItems.length + 1}`,
+          length: l,
+          width: w,
+          quantity: q,
+          pricePerM2: p,
+          area,
+          cost,
+          timestamp: Date.now(),
+        });
+      }
+    });
+    
+    if (newItems.length > 0) {
+      setItems([...newItems, ...items]);
+      setBulkText('');
+      setShowBulkAdd(false);
+    }
   };
 
   const handleCopyQuote = () => {
@@ -463,37 +525,75 @@ export default function App() {
         {/* Input Section */}
         <section className="bg-white rounded-2xl shadow-sm border border-neutral-200 overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-neutral-100 bg-neutral-50/50">
-            <h2 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Ruler className="w-4 h-4" />
-              Nueva Medición
-            </h2>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Global Price */}
-              <div className="space-y-1.5 sm:col-span-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-sm font-medium text-neutral-700 flex items-center justify-between w-full">
-                    <span>Precio por m² ($)</span>
-                    <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest bg-indigo-50 px-1.5 py-0.5 rounded">Persistente</span>
-                  </label>
-                  {errors.globalPrice && <span className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{errors.globalPrice}</span>}
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <DollarSign className={`h-4 w-4 ${errors.globalPrice ? 'text-red-400' : 'text-neutral-400'}`} />
-                  </div>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={globalPrice}
-                    onChange={(e) => { setGlobalPrice(e.target.value); clearError('globalPrice'); }}
-                    className={`block w-full pl-9 pr-3 py-2.5 bg-white border ${errors.globalPrice ? 'border-red-300 ring-2 ring-red-500/10' : 'border-neutral-300'} rounded-xl text-neutral-900 focus:ring-2 ${errors.globalPrice ? 'focus:ring-red-500/20 focus:border-red-500' : 'focus:ring-indigo-600/20 focus:border-indigo-600'} transition-all sm:text-sm`}
-                    placeholder="Ej: 1500"
-                  />
-                </div>
-              </div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-2">
+                <Ruler className="w-4 h-4" />
+                Nueva Medición
+              </h2>
+              <button
+                onClick={() => setShowBulkAdd(!showBulkAdd)}
+                className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
+                  showBulkAdd 
+                    ? 'bg-indigo-600 text-white shadow-md' 
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                {showBulkAdd ? 'Modo Simple' : 'Modo Masivo'}
+              </button>
+            </div>
 
+            {/* Global Price - Always Visible */}
+            <div className="mb-6 space-y-1.5">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-medium text-neutral-700 flex items-center justify-between w-full">
+                  <span>Precio por m² ($)</span>
+                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest bg-indigo-50 px-1.5 py-0.5 rounded">Persistente</span>
+                </label>
+                {errors.globalPrice && <span className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{errors.globalPrice}</span>}
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <DollarSign className={`h-4 w-4 ${errors.globalPrice ? 'text-red-400' : 'text-neutral-400'}`} />
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={globalPrice}
+                  onChange={(e) => { setGlobalPrice(e.target.value); clearError('globalPrice'); }}
+                  className={`block w-full pl-9 pr-3 py-2.5 bg-white border ${errors.globalPrice ? 'border-red-300 ring-2 ring-red-500/10' : 'border-neutral-300'} rounded-xl text-neutral-900 focus:ring-2 ${errors.globalPrice ? 'focus:ring-red-500/20 focus:border-red-500' : 'focus:ring-indigo-600/20 focus:border-indigo-600'} transition-all sm:text-sm`}
+                  placeholder="Ej: 1500"
+                />
+              </div>
+            </div>
+            
+            {showBulkAdd ? (
+              <div className="space-y-4">
+                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                  <p className="text-xs text-indigo-700 font-medium leading-relaxed">
+                    Ingresa una medida por línea. Formatos aceptados:<br/>
+                    • <span className="font-bold">Largo x Ancho x Cantidad x Precio</span> (Ej: 120x60x2x1500)<br/>
+                    • <span className="font-bold">Nombre, Largo, Ancho, Cantidad, Precio</span> (Ej: Ventana, 120, 60, 2, 1500)
+                  </p>
+                </div>
+                <textarea
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  placeholder="Ej:&#10;120x60x2&#10;Ventana, 100, 50, 1, 1500&#10;80 40 3 1200"
+                  className="w-full h-40 p-4 bg-white border border-neutral-300 rounded-xl text-neutral-900 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all sm:text-sm font-mono"
+                />
+                <button
+                  onClick={handleBulkAdd}
+                  disabled={!bulkText.trim()}
+                  className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-neutral-200 disabled:text-neutral-400 text-white px-6 py-3 rounded-xl font-medium transition-all active:scale-[0.98]"
+                >
+                  <Plus className="w-5 h-5" />
+                  Añadir Todas las Medidas
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Name */}
               <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-sm font-medium text-neutral-700">Nombre / Etiqueta</label>
@@ -562,6 +662,7 @@ export default function App() {
                 </div>
               </div>
             </div>
+          )}
           </div>
 
           {/* Live Preview & Action */}
@@ -605,7 +706,19 @@ export default function App() {
         {/* Project List */}
         {items.length > 0 && (
           <section className="space-y-4">
-            <div className="flex items-center justify-between px-1">
+            {/* Quick Summary Card */}
+            <div className="bg-indigo-600 rounded-2xl p-5 text-white shadow-lg shadow-indigo-200 flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-bold uppercase tracking-widest opacity-80">Resumen Total</p>
+                <h3 className="text-2xl font-bold">{totalArea.toFixed(4)} m²</h3>
+              </div>
+              <div className="text-right space-y-1">
+                <p className="text-xs font-bold uppercase tracking-widest opacity-80">Inversión Total</p>
+                <h3 className="text-2xl font-bold">${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between px-1 pt-4">
               <h2 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-2">
                 <History className="w-4 h-4" />
                 Desglose del Proyecto
