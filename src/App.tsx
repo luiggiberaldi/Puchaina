@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Calculator, 
   History, 
-  Trash2, 
+  Trash, 
   Plus, 
   Copy, 
   Check, 
@@ -15,10 +15,9 @@ import {
   RefreshCw,
   TrendingUp,
   Download,
-  Edit2,
-  XCircle
+  Pencil,
+  CircleX
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 // Types
 interface Measurement {
@@ -265,8 +264,16 @@ export default function App() {
       ));
       setEditingId(null);
     } else {
+      const generateId = () => {
+        try {
+          return crypto.randomUUID();
+        } catch {
+          return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+        }
+      };
+
       const newItem: Measurement = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: name.trim() || `Área ${items.length + 1}`,
         length: currentLength,
         width: currentWidth,
@@ -416,7 +423,7 @@ export default function App() {
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                       {projectName}
                     </span>
-                    <Edit2 className="w-2.5 h-2.5 text-gray-300 group-hover:text-indigo-400 transition-colors" />
+                    <Pencil className="w-2.5 h-2.5 text-gray-300 group-hover:text-indigo-400 transition-colors" />
                   </>
                 )}
               </div>
@@ -579,7 +586,7 @@ export default function App() {
                   onClick={handleCancelEdit}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 px-6 py-3 rounded-xl font-medium transition-all active:scale-[0.98]"
                 >
-                  <XCircle className="w-5 h-5" />
+                  <CircleX className="w-5 h-5" />
                   Cancelar
                 </button>
               )}
@@ -624,23 +631,19 @@ export default function App() {
                   onClick={() => setShowClearConfirm(true)}
                   className="text-sm text-red-500 hover:text-red-600 font-medium flex items-center gap-1 px-2 py-1 rounded-md hover:bg-red-50 transition-colors"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash className="w-4 h-4" />
                   Limpiar
                 </button>
               )}
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-neutral-200 overflow-hidden">
-              <ul className="divide-y divide-neutral-100">
-                <AnimatePresence initial={false}>
-                  {items.map((item) => (
-                    <motion.li
-                      key={item.id}
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="p-4 sm:p-5 hover:bg-neutral-50/50 transition-colors group"
-                    >
+                <div className="bg-white rounded-2xl shadow-sm border border-neutral-200 overflow-hidden">
+                  <ul className="divide-y divide-neutral-100">
+                    {items.map((item) => (
+                      <li
+                        key={item.id}
+                        className="p-4 sm:p-5 hover:bg-neutral-50/50 transition-colors group"
+                      >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <h3 className="text-base font-medium text-neutral-900 truncate">
@@ -666,21 +669,20 @@ export default function App() {
                             className="p-2 text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                             aria-label="Editar item"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Pencil className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleRemoveItem(item.id)}
                             className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             aria-label="Eliminar item"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
-                    </motion.li>
-                  ))}
-                </AnimatePresence>
-              </ul>
+                      </li>
+                    ))}
+                  </ul>
               
               {/* Totals Footer */}
               <div className="bg-neutral-50 p-5 sm:p-6 border-t border-neutral-200">
